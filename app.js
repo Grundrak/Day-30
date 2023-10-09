@@ -1,19 +1,32 @@
 
 const express = require("express");
+const { MongoClient, ServerApiVersion } = require("mongodb");
 const app = express();
 const PORT = 3000;
-
-let products = [
-  { id: 1, name: "iPhone 12 Pro", price: 1099.99, image: "iPhone_12_Pro.jpg" },
-  { id: 2, name: "Samsung Galaxy S21", price: 999.99, image: "samsung_galaxy_s21.jpg" },
-  { id: 3, name: "Sony PlayStation 5", price: 499.99, image: "sony_playstation_5.jpg" },
-  { id: 4, name: "MacBook Pro 16", price: 2399.99, image: "macbook_pro_16.jpg" },
-  { id: 5, name: "DJI Mavic Air 2", price: 799.99, image: "dji_mavic_air_2.jpg" },
-];
 const path = require('path');
+require('dotenv').config();
+let db;
+const client = new MongoClient(process.env.URL,  {
+  serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true,
+  }
+}
+);
+async function connectmngdb() {
+ try{
+  await client.connect();
+  db = client.db("DataMng"); // connect db to DataMng
+  console.log('Great work You are Connected to MongoDb');
+ }catch(err){
+  console.error(err.message);
+  throw err;
+ }
+}
+connectmngdb();
 
 app.use('/public', express.static(path.join(__dirname, 'public')));
-
 app.use(express.json());
 app.set('view engine','ejs');
 app.set('views','./views');
@@ -27,11 +40,19 @@ app.use('public',(req ,res ,next) =>{
   next()
 })
 
-app.get('/products', (req ,res) => {
-    res.render('home',{ products: products })
+app.get('/products', async (req ,res) => {
+    
+     try {
+      console.log(db);
+      const productsmn = db.collection("Products");
+      console.log(productsmn);
+      const products = await productsmn.find({}).toArray();
+      console.log(products);
+      res.render("home", { products });
+        } catch (err) {
+      res.status(500).send('Error fetching data from Mngdb');
+    }
 })
-
-
 
 app.use((req,res,next) => {
   const crDate = new Date();
@@ -41,19 +62,20 @@ app.use((req,res,next) => {
   next();
 })
 
-
-app.get("/products", (req, res) => {
-  res.send(products);
-});
-app.get("/products/:id", (req, res) => {
-  let product = products.find(
-    (product) => product.id === parseInt(req.params.id)
-  );
-  if (product) {
-    res.render('productDetails',{product : product});
-  } else {
-    res.status(404).send();
+app.get("/products/:id", async (req, res) => {
+  const productId = parseInt(req.params.id);
+  try{
+    const product = await db.collection('Products').findOne({ id: productId });
+    if (product) {
+      res.render('productDetails',{ product });
+    } else {
+      res.status(404).send();
+    }
+  }catch(err){
+    res.status(500).send('Error fetching data from Mngdb');
   }
+
+
 });
 
 app.get("/products/p/search", (req, res) => {
@@ -105,6 +127,7 @@ app.delete("/products/:id", (req, res) => {
     res.sendStatus(404);
   }
 });
+
 app.listen(PORT, () => {
   console.log(`server on port ${PORT}`);
 });
